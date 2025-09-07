@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <span>
 
-namespace servo_protocol {
+namespace protocol::servo {
 
     enum class ControlMode : uint32_t {
         SetDutyCycle     = 0,
@@ -159,4 +159,4 @@ namespace servo_protocol {
         return frame;
     }
 
-} // namespace servo_protocol
+} // namespace protocol::servo

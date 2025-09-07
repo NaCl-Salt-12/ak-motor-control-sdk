@@ -11,7 +11,7 @@
 #include "motor_control_sdk/lib/motor_specs.h"
 
 
-namespace force_control_protocol {
+namespace protocol::force_control {
     // The Control Mode ID for all Force Control commands
     constexpr uint32_t FORCE_CONTROL_ID = 8;
 
@@ -21,47 +21,6 @@ namespace force_control_protocol {
             x = std::clamp(x, x_min, x_max);
             return static_cast<int>((x - x_min) * (static_cast<float>((1 << bits) - 1) / span));
         }
-    }
-
-    /**
-     * @brief Represents a reply message received from the motor.
-     * @param position Position in degrees.
-     * @param velocity Velocity in electrical RPM.
-     * @param current Current in Amps.
-     * @param temperature Temperature in Celsius.
-     * @param error_code Error code as per the motor's documentation.
-     */
-    struct MotorReply {
-        float position;
-        float velocity;
-        float current;
-        int8_t temperature;
-        uint8_t error_code;
-    };
-
-    /**
-     * @brief Unpacks an 8-byte CAN reply frame into a MotorReply struct.
-     * @param data An 8-byte span from the `can_frame.data` field.
-     * @return A struct containing the parsed motor state.
-     */
-    inline MotorReply unpack_reply_frame(std::span<const uint8_t, 8> data) {
-        // Scaling factors from the motor documentation
-        constexpr float POSITION_SCALE = 0.1f;
-        constexpr float VELOCITY_SCALE = 10.0f;
-        constexpr float CURRENT_SCALE = 0.01f;
-
-        MotorReply reply;
-
-        int16_t pos_int = (data[0] << 8) | data[1];
-        int16_t vel_int = (data[2] << 8) | data[3];
-        int16_t cur_int = (data[4] << 8) | data[5];
-
-        reply.position = static_cast<float>(pos_int) * POSITION_SCALE;
-        reply.velocity = static_cast<float>(vel_int) * VELOCITY_SCALE;
-        reply.current = static_cast<float>(cur_int) * CURRENT_SCALE;
-        reply.temperature = data[6];
-        reply.error_code = data[7];
-        return reply;
     }
 
     /**
@@ -107,4 +66,4 @@ namespace force_control_protocol {
         return frame;
     }
 
-} // namespace force_control_protocol
+} // namespace protocol::force_control
