@@ -36,8 +36,6 @@ class MotorDriver : public rclcpp::Node {
         // ROS2 subscription:
         rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr sub_;
 
-
-
         std::mutex motor_mutex_;
         std::thread motor_thread_;
         bool running_;

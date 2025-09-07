@@ -5,6 +5,9 @@ module(
     name = "motor-control-sdk",
 )
 
+# Bazel Skylib:
+bazel_dep(name = "bazel_skylib", version = "1.8.1")
+
 # Platforms:
 bazel_dep(name = "platforms", version = "1.0.0")
 
@@ -94,3 +97,6 @@ git_override(
     remote = "https://github.com/mikael-s-persson/bazel-compile-commands-extractor",
     commit = "f5fbd4cee671d8d908f37c83abaf70fba5928fc7",
 )
+
+# Linting and Formatting
+bazel_dep(name = "aspect_rules_lint", version = "1.7.0")

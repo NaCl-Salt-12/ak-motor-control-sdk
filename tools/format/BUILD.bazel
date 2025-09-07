@@ -1,0 +1,20 @@
+load("@aspect_rules_lint//format:defs.bzl", "format_multirun")
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+
+native_binary(
+    name = "clang-format",
+    src = select(
+        {
+            "@bazel_tools//src/conditions:linux_x86_64": "@llvm_toolchain_llvm//:bin/clang-format",
+            "@bazel_tools//src/conditions:linux_aarch64": "@llvm_toolchain_llvm//:bin/clang-format",
+            "@bazel_tools//src/conditions:darwin_x86_64": "@llvm_toolchain_llvm//:bin/clang-format",
+            "@bazel_tools//src/conditions:darwin_arm64": "@llvm_toolchain_llvm//:bin/clang-format",
+        },
+    ),
+    out = "clang-format",
+)
+
+format_multirun(
+    name = "format",
+    cc = ":clang-format",
+)

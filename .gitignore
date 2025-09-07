@@ -39,3 +39,40 @@
 
 # debug information files
 *.dwo
+
+# Bazel-generated files and directories
+/bazel-*
+/.bazelignore
+/.bazelrc.local
+/bazel-bin/
+/bazel-out/
+/bazel-testlogs/
+/bazel-genfiles/
+/bazel-cache/
+/bazel-repo/
+
+# IDE-specific files (e.g., IntelliJ, VS Code)
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+/.classpath
+/.project
+/.settings/
+
+# Operating System specific files
+.DS_Store
+Thumbs.db
+
+# Temporary files and logs
+*.log
+*.tmp
+*~
+*.swp
+
+# Clangd and Clang-related files
+.clangd/
+.clang-format
+compile_commands.json
+.cache/

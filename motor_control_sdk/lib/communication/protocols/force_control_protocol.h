@@ -45,15 +45,20 @@ namespace force_control_protocol {
      * @return A struct containing the parsed motor state.
      */
     inline MotorReply unpack_reply_frame(std::span<const uint8_t, 8> data) {
+        // Scaling factors from the motor documentation
+        constexpr float POSITION_SCALE = 0.1f;
+        constexpr float VELOCITY_SCALE = 10.0f;
+        constexpr float CURRENT_SCALE = 0.01f;
+
         MotorReply reply;
 
         int16_t pos_int = (data[0] << 8) | data[1];
         int16_t vel_int = (data[2] << 8) | data[3];
         int16_t cur_int = (data[4] << 8) | data[5];
 
-        reply.position = static_cast<float>(pos_int) * 0.1f;
-        reply.velocity = static_cast<float>(vel_int) * 10.0f;
-        reply.current = static_cast<float>(cur_int) * 0.01f;
+        reply.position = static_cast<float>(pos_int) * POSITION_SCALE;
+        reply.velocity = static_cast<float>(vel_int) * VELOCITY_SCALE;
+        reply.current = static_cast<float>(cur_int) * CURRENT_SCALE;
         reply.temperature = data[6];
         reply.error_code = data[7];
         return reply;
@@ -70,7 +75,7 @@ namespace force_control_protocol {
      * @param limits The MotorLimits struct for the specific motor model.
      * @return A ready-to-send can_frame.
      */
-    inline can_frame create_mit_frame(
+    inline can_frame create_force_control_frame(
         uint8_t driver_id,
         float position_setpoint,
         float velocity_setpoint,
@@ -102,4 +107,4 @@ namespace force_control_protocol {
         return frame;
     }
 
-} // namespace mit_protocol
+} // namespace force_control_protocol

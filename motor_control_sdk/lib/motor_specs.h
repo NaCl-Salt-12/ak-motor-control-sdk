@@ -17,7 +17,7 @@ namespace motor_specs {
     };
 
     /**
-     * @brief A map of known motor limits, populated from the manual's table.
+     * @brief A map of motor limits from the documentation.
      * The key is the motor model string (e.g., "AK10-9").
      */
     const static std::map<std::string, MotorLimits> MOTOR_LIMITS = {
