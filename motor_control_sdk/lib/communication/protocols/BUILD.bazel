@@ -1,0 +1,20 @@
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "motor_reply",
+    srcs = ["motor_reply.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "servo_protocol",
+    srcs = ["servo_protocol.h"],
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
+    name = "force_control_protocol",
+    srcs = ["force_control_protocol.h"],
+    deps = ["//motor_control_sdk/lib:motor_specs"],
+    visibility = ["//visibility:public"],
+)

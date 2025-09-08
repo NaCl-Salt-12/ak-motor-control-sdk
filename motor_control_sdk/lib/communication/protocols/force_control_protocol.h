@@ -23,47 +23,46 @@ namespace protocol::force_control {
         }
     }
 
+    struct ForceControlCommand {
+        float position_setpoint;    // radians
+        float velocity_setpoint;    // rad/s
+        float feedforward_torque;   // N.m
+        float kp;                   // position gain (stiffness)
+        float kd;                   // velocity gain (damping)
+    };
+
     /**
      * @brief Creates a CAN frame for the Force Control (MIT) mode.
      * @param driver_id The motor's ID (0-255).
-     * @param position Desired position in radians.
-     * @param velocity Desired velocity in rad/s.
-     * @param feedforward_torque Feed-forward torque in N.m.
-     * @param kp Position gain (stiffness).
-     * @param kd Velocity gain (damping).
+     * @param command The ForceControlCommand struct.
      * @param limits The MotorLimits struct for the specific motor model.
      * @return A ready-to-send can_frame.
      */
     inline can_frame create_force_control_frame(
         uint8_t driver_id,
-        float position_setpoint,
-        float velocity_setpoint,
-        float feedforward_torque,
-        float kp,
-        float kd,
-        const MotorLimits& limits
+        const ForceControlCommand& command,
+        const motor_specs::MotorLimits& limits
     ) {
-        can_frame frame{};
-        frame.can_id = driver_id | (FORCE_CONTROL_ID << 8);
-        frame.can_id |= CAN_EFF_FLAG;
-        frame.can_dlc = 8;
+        const int p_int = float_to_uint(command.position_setpoint, limits.POSITION_MIN, limits.POSITION_MAX, 16);
+        const int v_int = float_to_uint(command.velocity_setpoint, limits.VELOCITY_MIN, limits.VELOCITY_MAX, 12);
+        const int t_int = float_to_uint(command.feedforward_torque, limits.TORQUE_MIN, limits.TORQUE_MAX, 12);
+        const int kp_int = float_to_uint(command.kp, limits.KP_MIN, limits.KP_MAX, 12);
+        const int kd_int = float_to_uint(command.kd, limits.KD_MIN, limits.KD_MAX, 12);
 
-        int p_int = float_to_uint(position_setpoint, limits.POSITION_MIN, limits.POSITION_MAX, 16);
-        int v_int = float_to_uint(velocity_setpoint, limits.VELOCITY_MIN, limits.VELOCITY_MAX, 12);
-        int t_int = float_to_uint(feedforward_torque, limits.TORQUE_MIN, limits.TORQUE_MAX, 12);
-        int kp_int = float_to_uint(kp, limits.KP_MIN, limits.KP_MAX, 12);
-        int kd_int = float_to_uint(kd, limits.KD_MIN, limits.KD_MAX, 12);
-
-        frame.data[0] = kp_int >> 4;
-        frame.data[1] = ((kp_int & 0x0F) << 4) | (kd_int >> 8);
-        frame.data[2] = kd_int & 0xFF;
-        frame.data[3] = p_int >> 8;
-        frame.data[4] = p_int & 0xFF;
-        frame.data[5] = v_int >> 4;
-        frame.data[6] = ((v_int & 0x0F) << 4) | (t_int >> 8);
-        frame.data[7] = t_int & 0xFF;
-        
-        return frame;
+        return can_frame{
+            .can_id = static_cast<canid_t>(driver_id | (FORCE_CONTROL_ID << 8) | CAN_EFF_FLAG),
+            .can_dlc = 8,
+            .data = {
+                static_cast<uint8_t>(kp_int >> 4),
+                static_cast<uint8_t>(((kp_int & 0x0F) << 4) | (kd_int >> 8)),
+                static_cast<uint8_t>(kd_int & 0xFF),
+                static_cast<uint8_t>(p_int >> 8),
+                static_cast<uint8_t>(p_int & 0xFF),
+                static_cast<uint8_t>(v_int >> 4),
+                static_cast<uint8_t>(((v_int & 0x0F) << 4) | (t_int >> 8)),
+                static_cast<uint8_t>(t_int & 0xFF)
+            }
+        };
     }
 
 } // namespace protocol::force_control
