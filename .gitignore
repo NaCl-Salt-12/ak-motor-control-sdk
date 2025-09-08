@@ -76,3 +76,7 @@ Thumbs.db
 .clang-format
 compile_commands.json
 .cache/
+
+# User specific bazel configuration:
+user.bazelrc
+.bazelrc.user

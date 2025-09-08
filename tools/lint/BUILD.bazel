@@ -2,6 +2,8 @@ load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
 
 package(default_visibility = ["//:__subpackages__"])
 
+exports_files([".clang-tidy"])
+
 native_binary(
     name = "clang_tidy",
     src = select(

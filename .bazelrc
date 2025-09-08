@@ -1,3 +1,6 @@
+try-import %workspace%/user.bazelrc
+
 common --enable_bzlmod
-build --repo_env=BAZEL_CXXOPTS="-std=c++23"
+build --repository_cache=~/.cache/bazel-repo-cache
+build --disk_cache=~/.cache/bazel-disk-cache
 build:opt --copt=-O3
