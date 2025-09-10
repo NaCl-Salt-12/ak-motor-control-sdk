@@ -53,5 +53,4 @@ class CanBus {
 
     private:
         int socket_fd_ = -1;
-        mutable std::mutex socket_mutex_;
 };

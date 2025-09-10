@@ -73,7 +73,6 @@ auto CanBus::set_read_timeout(std::chrono::milliseconds timeout) -> expected_voi
 }
 
 auto CanBus::write_frame(const can_frame& frame) const -> expected_void<std::errc> {
-    std::lock_guard<std::mutex> lock(socket_mutex_);
     if (write(socket_fd_, &frame, sizeof(can_frame)) != sizeof(can_frame))
         return std::unexpected(static_cast<std::errc>(errno));
 
@@ -81,7 +80,6 @@ auto CanBus::write_frame(const can_frame& frame) const -> expected_void<std::err
 }
 
 auto CanBus::read_frame() const -> std::expected<can_frame, std::errc> {
-    std::lock_guard<std::mutex> lock(socket_mutex_);
     can_frame frame{};
     ssize_t bytes_read = read(socket_fd_, &frame, sizeof(can_frame));
 

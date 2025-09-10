@@ -33,13 +33,13 @@ namespace protocol::force_control {
 
     /**
      * @brief Creates a CAN frame for the Force Control (MIT) mode.
-     * @param driver_id The motor's ID (0-255).
+     * @param id The motor's ID (0-255).
      * @param command The ForceControlCommand struct.
      * @param limits The MotorLimits struct for the specific motor model.
      * @return A ready-to-send can_frame.
      */
     inline can_frame create_force_control_frame(
-        uint8_t driver_id,
+        uint8_t id,
         const ForceControlCommand& command,
         const motor_specs::MotorLimits& limits
     ) {
@@ -50,7 +50,7 @@ namespace protocol::force_control {
         const int kd_int = float_to_uint(command.kd, limits.KD_MIN, limits.KD_MAX, 12);
 
         return can_frame{
-            .can_id = static_cast<canid_t>(driver_id | (FORCE_CONTROL_ID << 8) | CAN_EFF_FLAG),
+            .can_id = static_cast<canid_t>(id | (FORCE_CONTROL_ID << 8) | CAN_EFF_FLAG),
             .can_dlc = 8,
             .data = {
                 static_cast<uint8_t>(kp_int >> 4),

@@ -3,11 +3,18 @@
 #include <memory>
 #include <mutex>
 #include <thread>
-#include <optional>
-
-#include "absl/status/status.h"
+#include <string>
+#include <vector>
+#include <map>
+#include <functional>
 
 #include "rclcpp/rclcpp.hpp"
+#include "motor_control_sdk/msg/motor_commands.hpp"
+#include "motor_control_sdk/msg/motor_states.hpp"
+
+#include "motor_control_sdk/lib/communication/can_bus.h"
+#include "motor_control_sdk/lib/driver/containers.h"
+#include "motor_control_sdk/lib/communication/protocol/motor_reply.h"
 
 /**
  * @brief Motor Driver control node for interfacing with CubeMars AK Series motors.
@@ -15,9 +22,11 @@
 class MotorDriver : public rclcpp::Node {
     public:
          /**
-         * @brief Construct a new Motor Driver object
+         * @brief Construct a Motor Driver object that manages communication with motors over CAN bus.
+         * @param options Node options for ROS2 configuration.
+         * @param configs A vector of MotorConfig structs defining each motor's settings.
          */
-        MotorDriver();
+        explicit MotorDriver(const rclcpp::NodeOptions& options, const std::vector<containers::MotorConfig>& configs);
 
         /**
          * @brief Destroy the Motor Driver object, ensuring proper cleanup of resources.
@@ -31,13 +40,37 @@ class MotorDriver : public rclcpp::Node {
         MotorDriver& operator=(MotorDriver&&) = delete;
 
     private:
-        // Private member variables for motor control
+        /**
+         * @brief A struct to hold all dynamic runtime state for a single motor.
+         */
+        struct MotorRuntimeState {
+            protocol::MotorReply last_reply;
+            rclcpp::Time last_reply_time;
+            bool enabled = false;
+        };
 
-        // ROS2 subscription:
-        rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr sub_;
+        // Private methods:
+        void setup();
+        void command_callback(const motor_control_sdk::msg::MotorCommands::SharedPtr msg);
+        void state_callback();
+        void can_read_loop(std::stop_token token, std::string_view can_interface);
 
-        std::mutex motor_mutex_;
-        std::thread motor_thread_;
-        bool running_;
-        std::optional<std::string> motor_id_;
+        // Member variables:
+        std::vector<containers::MotorConfig> motor_configs_;
+        std::map<std::string, std::shared_ptr<CanBus>, std::less<>> can_buses_;
+        int publish_rate_us_;
+
+        // Lookup maps:
+        std::map<std::string, const containers::MotorConfig*> motor_config_by_name_;
+        std::map<std::string, std::map<uint8_t, std::string>, std::less<>> motor_name_by_bus_id_;
+        std::map<std::string, MotorRuntimeState> motor_states_;
+
+        // Threading Management
+        std::vector<std::jthread> threads_;
+        std::mutex mutex_;
+
+        // ROS2 Interface
+        rclcpp::Subscription<motor_control_sdk::msg::MotorCommands>::SharedPtr command_subscriber_;
+        rclcpp::Publisher<motor_control_sdk::msg::MotorStates>::SharedPtr state_publisher_;
+        rclcpp::TimerBase::SharedPtr timer_;
 };
