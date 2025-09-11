@@ -3,4 +3,8 @@ try-import %workspace%/user.bazelrc
 common --enable_bzlmod
 build --repository_cache=~/.cache/bazel-repo-cache
 build --disk_cache=~/.cache/bazel-disk-cache
+
+build --cxxopt="-include" --cxxopt="exception"
+build --cxxopt="-include" --cxxopt="ostream"
+
 build:opt --copt=-O3

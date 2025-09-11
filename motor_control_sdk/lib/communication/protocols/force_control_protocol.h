@@ -43,11 +43,11 @@ namespace protocol::force_control {
         const ForceControlCommand& command,
         const motor_specs::MotorLimits& limits
     ) {
-        const int p_int = float_to_uint(command.position_setpoint, limits.POSITION_MIN, limits.POSITION_MAX, 16);
-        const int v_int = float_to_uint(command.velocity_setpoint, limits.VELOCITY_MIN, limits.VELOCITY_MAX, 12);
-        const int t_int = float_to_uint(command.feedforward_torque, limits.TORQUE_MIN, limits.TORQUE_MAX, 12);
-        const int kp_int = float_to_uint(command.kp, limits.KP_MIN, limits.KP_MAX, 12);
-        const int kd_int = float_to_uint(command.kd, limits.KD_MIN, limits.KD_MAX, 12);
+        const int p_int = internal::float_to_uint(command.position_setpoint, limits.POSITION_MIN, limits.POSITION_MAX, 16);
+        const int v_int = internal::float_to_uint(command.velocity_setpoint, limits.VELOCITY_MIN, limits.VELOCITY_MAX, 12);
+        const int t_int = internal::float_to_uint(command.feedforward_torque, limits.TORQUE_MIN, limits.TORQUE_MAX, 12);
+        const int kp_int = internal::float_to_uint(command.kp, limits.KP_MIN, limits.KP_MAX, 12);
+        const int kd_int = internal::float_to_uint(command.kd, limits.KD_MIN, limits.KD_MAX, 12);
 
         return can_frame{
             .can_id = static_cast<canid_t>(id | (FORCE_CONTROL_ID << 8) | CAN_EFF_FLAG),

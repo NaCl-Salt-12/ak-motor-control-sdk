@@ -25,7 +25,7 @@ bazel_dep(name = "com_github_mvukov_rules_ros2")
 git_override(
     module_name = "com_github_mvukov_rules_ros2",
     remote = "https://github.com/mvukov/rules_ros2.git",
-    commit = "b0a0544ccdb13db7fdb2b509ef58d04c5b7c72c9",
+    commit = "3ff2dd67b8c74a2027b357ce4f0f1afb4971d43e",
 )
 
 # Python Toolchain:

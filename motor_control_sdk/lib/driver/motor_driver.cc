@@ -1,5 +1,6 @@
 #include "motor_driver.h"
 
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -8,16 +9,15 @@
 #include <map>
 #include <functional>
 #include <chrono>
+#include <format>
 
 #include "rclcpp/rclcpp.hpp"
-#include "motor_control_sdk/msg/motor_commands.hpp"
-#include "motor_control_sdk/msg/motor_states.hpp"
+#include "motor_control_sdk/msgs/motor_msgs.h"
 
-#include "motor_control_sdk/lib/communication/can_bus.h"
 #include "motor_control_sdk/lib/driver/containers.h"
-#include "motor_control_sdk/lib/communication/protocol/motor_reply.h"
-
-#include "motor_control_sdk/force_control_protocol.h"
+#include "motor_control_sdk/lib/communication/can_bus.h"
+#include "motor_control_sdk/lib/communication/protocols/motor_reply.h"
+#include "motor_control_sdk/lib/communication/protocols/force_control_protocol.h"
 
 using namespace std::chrono_literals;
 
@@ -43,14 +43,14 @@ void MotorDriver::setup() {
     // Validate and organize motor configurations
     for (const auto& config : motor_configs_) {
         if (motor_config_by_name_.count(config.name))
-            throw std::runtime_error("Duplicate motor name detected: " + config.name);
+            throw std::runtime_error(std::format("Duplicate motor name detected: {}", config.name));
 
         if (motor_name_by_bus_id_[config.interface].count(config.id))
-            throw std::runtime_error("Duplicate motor ID " + std::to_string(config.id) + " on interface " + config.interface);
+            throw std::runtime_error(std::format("Duplicate motor ID {} on interface {}", config.id, config.interface));
 
         motor_config_by_name_[config.name] = &config;
         motor_name_by_bus_id_[config.interface][config.id] = config.name;
-        motor_states_[config.name] = MotorRuntimeState{};
+        motor_states_.try_emplace(config.name);
     }
 
     // Initialize CAN buses based on motor configurations
@@ -61,8 +61,7 @@ void MotorDriver::setup() {
                 auto bus = std::make_shared<CanBus>(config.interface);
 
                 // TODO(jeh15): This is something we need to know.
-                bus->set_read_timeout(100ms);
-                //
+                bus->set_read_timeout(2ms);
 
                 can_buses_[config.interface] = bus;
             } catch (const std::system_error& e) {
@@ -76,15 +75,15 @@ void MotorDriver::setup() {
     rclcpp::QoS qos_profile(10);
     qos_profile.best_effort();
 
-    command_subscriber_ = this->create_subscription<motor_control_sdk::msg::MotorCommands>(
+    command_subscriber_ = this->create_subscription<cubemars_motor_msgs::msg::MotorCommands>(
         "/motor_commands",
         qos_profile,
-        [this](const motor_control_sdk::msg::MotorCommands::SharedPtr msg) {
+        [this](const cubemars_motor_msgs::msg::MotorCommands::ConstSharedPtr msg) {
             this->command_callback(msg);
         }
     );
 
-    state_publisher_ = this->create_publisher<motor_control_sdk::msg::MotorStates>(
+    state_publisher_ = this->create_publisher<cubemars_motor_msgs::msg::MotorStates>(
         "/motor_states",
         qos_profile
     );
@@ -95,16 +94,20 @@ void MotorDriver::setup() {
     );
 
     // Dedicated thread for CAN Reading:
-    for (auto const& [name, bus_ptr] : can_buses_)
-        threads_.emplace_back(&MotorDriver::can_read_loop, this, name);
-
+    for (const auto& [name, bus_ptr] : can_buses_) {
+        threads_.emplace_back(
+        [this](std::stop_token token, std::string name) {
+            this->can_read_loop(token, name);
+        }, 
+        std::string(name));
+    }
 }
 
 /**
  * @brief Callback for receiving motor commands from the ROS network.
  * @param msg The received MotorCommands message.
  */
-void MotorDriver::command_callback(const motor_control_sdk::msg::MotorCommands::SharedPtr msg) {
+void MotorDriver::command_callback(const cubemars_motor_msgs::msg::MotorCommands::ConstSharedPtr msg) {
     for (const auto& command : msg->motor_commands) {
         auto it = motor_config_by_name_.find(command.name);
         if (it == motor_config_by_name_.end()) {
@@ -145,10 +148,22 @@ void MotorDriver::command_callback(const motor_control_sdk::msg::MotorCommands::
 /**
  * @brief Main loop for a dedicated thread that reads CAN frames from a single bus.
  */
-void MotorDriver::can_read_loop(std::stop_token token, std::string_view can_interface) {
+void MotorDriver::can_read_loop(std::stop_token token, const std::string& can_interface) {
     RCLCPP_INFO(this->get_logger(), "CAN reader thread started for %s.", can_interface.c_str());
-    const auto& can_bus = can_buses_.at(can_interface);
-    const auto& id_map = motor_name_by_bus_id_.at(can_interface);
+
+    auto can_bus_it = can_buses_.find(can_interface);
+    if (can_bus_it == can_buses_.end()) {
+        RCLCPP_FATAL(this->get_logger(), "Invalid CAN interface name passed to reader thread: %s", can_interface.c_str());
+        return;
+    }
+    const auto& can_bus = can_bus_it->second;
+
+    auto bus_map_it = motor_name_by_bus_id_.find(can_interface);
+    if (bus_map_it == motor_name_by_bus_id_.end()) {
+        RCLCPP_FATAL(this->get_logger(), "Invalid CAN interface name passed to reader thread: %s", can_interface.c_str());
+        return;
+    }
+    const auto& id_map = bus_map_it->second;
 
     while (!token.stop_requested()) {
         auto result = can_bus->read_frame();
@@ -173,9 +188,9 @@ void MotorDriver::can_read_loop(std::stop_token token, std::string_view can_inte
                     this->get_logger(),
                     "Received CAN frame from unknown motor ID %u on interface '%s'.",
                     id,
-                    std::string(can_interface).c_str()
+                    can_interface.c_str()
                 );
-                throw std::runtime_error("Unknown motor ID on CAN bus");
+                throw std::runtime_error(std::format("Unknown motor ID {} on CAN bus {}", id, can_interface));
             }
         } 
         else if (result.error() != std::errc::timed_out) {
@@ -193,21 +208,22 @@ void MotorDriver::can_read_loop(std::stop_token token, std::string_view can_inte
  * @brief Timer callback to periodically publish the state of all motors.
  */
 void MotorDriver::state_callback() {
-    motor_control_sdk::msg::MotorStates states_msg;
+    cubemars_motor_msgs::msg::MotorStates states_msg;
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        states_msg.states.reserve(motor_states_.size());
+        states_msg.motor_states.reserve(motor_states_.size());
         for (const auto& [name, state] : motor_states_) {
-            states_msg.states.push_back(
-                motor_control_sdk::msg::MotorState{
-                    .name = name,
-                    .position = state.last_reply.position,
-                    .velocity = state.last_reply.velocity,
-                    .current = state.last_reply.current,
-                    .temperature = state.last_reply.temperature,
-                    .error_code = state.last_reply.error_code
-                });
+            cubemars_motor_msgs::msg::MotorState state_msg;
+
+            state_msg.name = name;
+            state_msg.position = state.last_reply.position;
+            state_msg.velocity = state.last_reply.velocity;
+            state_msg.current = state.last_reply.current;
+            state_msg.temperature = state.last_reply.temperature;
+            state_msg.error_code = state.last_reply.error_code;
+
+            states_msg.motor_states.push_back(state_msg);
         }
     }
     

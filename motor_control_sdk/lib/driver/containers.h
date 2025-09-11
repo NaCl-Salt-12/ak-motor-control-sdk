@@ -3,7 +3,7 @@
 #include <string>
 #include <cstdint>
 
-#include "motor_specs.h"
+#include "motor_control_sdk/lib/motor_specs.h"
 
 
 namespace containers {
