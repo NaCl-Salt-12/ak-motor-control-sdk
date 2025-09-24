@@ -9,10 +9,14 @@
 #include <map>
 #include <functional>
 #include <chrono>
-#include <format>
+#include <atomic>
+#include <sstream>
 
 #include "rclcpp/rclcpp.hpp"
-#include "motor_control_sdk/msgs/motor_msgs.h"
+#include "motor_control_sdk/msg/motor_command.hpp"
+#include "motor_control_sdk/msg/motor_commands.hpp"
+#include "motor_control_sdk/msg/motor_state.hpp"
+#include "motor_control_sdk/msg/motor_states.hpp"
 
 #include "motor_control_sdk/lib/driver/containers.h"
 #include "motor_control_sdk/lib/communication/can_bus.h"
@@ -35,6 +39,16 @@ MotorDriver::MotorDriver(const rclcpp::NodeOptions& options, const std::vector<c
 
 MotorDriver::~MotorDriver() {
     RCLCPP_INFO(this->get_logger(), "Shutting down MotorDriver node.");
+    
+    // Signal threads to stop
+    stop_threads_ = true;
+    
+    // Wait for all threads to finish
+    for (auto& thread : threads_) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
 }
 
 void MotorDriver::setup() {
@@ -42,11 +56,17 @@ void MotorDriver::setup() {
 
     // Validate and organize motor configurations
     for (const auto& config : motor_configs_) {
-        if (motor_config_by_name_.count(config.name))
-            throw std::runtime_error(std::format("Duplicate motor name detected: {}", config.name));
+        if (motor_config_by_name_.count(config.name)) {
+            std::stringstream ss;
+            ss << "Duplicate motor name detected: " << config.name;
+            throw std::runtime_error(ss.str());
+        }
 
-        if (motor_name_by_bus_id_[config.interface].count(config.id))
-            throw std::runtime_error(std::format("Duplicate motor ID {} on interface {}", config.id, config.interface));
+        if (motor_name_by_bus_id_[config.interface].count(config.id)) {
+            std::stringstream ss;
+            ss << "Duplicate motor ID " << config.id << " on interface " << config.interface;
+            throw std::runtime_error(ss.str());
+        }
 
         motor_config_by_name_[config.name] = &config;
         motor_name_by_bus_id_[config.interface][config.id] = config.name;
@@ -75,15 +95,15 @@ void MotorDriver::setup() {
     rclcpp::QoS qos_profile(10);
     qos_profile.best_effort();
 
-    command_subscriber_ = this->create_subscription<cubemars_motor_msgs::msg::MotorCommands>(
+    command_subscriber_ = this->create_subscription<motor_control_sdk::msg::MotorCommands>(
         "/motor_commands",
         qos_profile,
-        [this](const cubemars_motor_msgs::msg::MotorCommands::ConstSharedPtr msg) {
+        [this](const motor_control_sdk::msg::MotorCommands::ConstSharedPtr msg) {
             this->command_callback(msg);
         }
     );
 
-    state_publisher_ = this->create_publisher<cubemars_motor_msgs::msg::MotorStates>(
+    state_publisher_ = this->create_publisher<motor_control_sdk::msg::MotorStates>(
         "/motor_states",
         qos_profile
     );
@@ -96,8 +116,8 @@ void MotorDriver::setup() {
     // Dedicated thread for CAN Reading:
     for (const auto& [name, bus_ptr] : can_buses_) {
         threads_.emplace_back(
-        [this](std::stop_token token, std::string name) {
-            this->can_read_loop(token, name);
+        [this](std::string name) {
+            this->can_read_loop(name);
         }, 
         std::string(name));
     }
@@ -107,7 +127,7 @@ void MotorDriver::setup() {
  * @brief Callback for receiving motor commands from the ROS network.
  * @param msg The received MotorCommands message.
  */
-void MotorDriver::command_callback(const cubemars_motor_msgs::msg::MotorCommands::ConstSharedPtr msg) {
+void MotorDriver::command_callback(const motor_control_sdk::msg::MotorCommands::ConstSharedPtr msg) {
     for (const auto& command : msg->motor_commands) {
         auto it = motor_config_by_name_.find(command.name);
         if (it == motor_config_by_name_.end()) {
@@ -148,7 +168,7 @@ void MotorDriver::command_callback(const cubemars_motor_msgs::msg::MotorCommands
 /**
  * @brief Main loop for a dedicated thread that reads CAN frames from a single bus.
  */
-void MotorDriver::can_read_loop(std::stop_token token, const std::string& can_interface) {
+void MotorDriver::can_read_loop(const std::string& can_interface) {
     RCLCPP_INFO(this->get_logger(), "CAN reader thread started for %s.", can_interface.c_str());
 
     auto can_bus_it = can_buses_.find(can_interface);
@@ -165,7 +185,7 @@ void MotorDriver::can_read_loop(std::stop_token token, const std::string& can_in
     }
     const auto& id_map = bus_map_it->second;
 
-    while (!token.stop_requested()) {
+    while (!stop_threads_) {
         auto result = can_bus->read_frame();
 
         if (result.has_value()) {
@@ -190,7 +210,9 @@ void MotorDriver::can_read_loop(std::stop_token token, const std::string& can_in
                     id,
                     can_interface.c_str()
                 );
-                throw std::runtime_error(std::format("Unknown motor ID {} on CAN bus {}", id, can_interface));
+                std::stringstream ss;
+                ss << "Unknown motor ID " << id << " on CAN bus " << can_interface;
+                throw std::runtime_error(ss.str());
             }
         } 
         else if (result.error() != std::errc::timed_out) {
@@ -208,13 +230,13 @@ void MotorDriver::can_read_loop(std::stop_token token, const std::string& can_in
  * @brief Timer callback to periodically publish the state of all motors.
  */
 void MotorDriver::state_callback() {
-    cubemars_motor_msgs::msg::MotorStates states_msg;
+    motor_control_sdk::msg::MotorStates states_msg;
 
     {
         std::lock_guard<std::mutex> lock(mutex_);
         states_msg.motor_states.reserve(motor_states_.size());
         for (const auto& [name, state] : motor_states_) {
-            cubemars_motor_msgs::msg::MotorState state_msg;
+            motor_control_sdk::msg::MotorState state_msg;
 
             state_msg.name = name;
             state_msg.position = state.last_reply.position;

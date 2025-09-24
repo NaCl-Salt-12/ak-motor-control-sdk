@@ -5,14 +5,47 @@ This repository contains a lightweight SDK for CAN communication with CubeMars A
 This repository is a work in progress and is not currently stable.
 
 ## How To Use
-This project uses Bazel and requires a modern C++ compiler that supports C++23. Bazel builds ROS2 in a self-contained way, so you do not need to have ROS2 installed on your system. You only need to use the `bazel build` and `bazel run` commands.
+This project now uses the standard ROS2 build system with `colcon`. It requires ROS2 Jazzy and a modern C++ compiler that supports C++17.
 
-Add the following to your `MODULE.bazel` file:
-```python
-bazel_dep(name = "motor-control-sdk")
-git_override(
-    module_name = "motor-control-sdk",
-    remote = "git@github.com:Optimal-Robotics-Lab/motor-control-sdk.git",
-    commit = "[insert the latest commit hash]",
-)
+### Prerequisites
+- ROS2 Jazzy installation
+- `colcon` build tools
+- C++17 compatible compiler
+
+### Building
+```bash
+# Create a ROS2 workspace
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+
+# Clone this repository
+git clone <this-repo-url> motor_control_sdk
+
+# Build the package
+cd ~/ros2_ws
+colcon build --packages-select motor_control_sdk
+
+# Source the workspace
+source install/setup.bash
+```
+
+### Running
+```bash
+# Launch the motor driver node
+ros2 launch motor_control_sdk motor_control.launch.py
+
+# Or run the node directly
+ros2 run motor_control_sdk motor_driver_node
+```
+
+### Usage as a Dependency
+Add this to your `package.xml`:
+```xml
+<depend>motor_control_sdk</depend>
+```
+
+Add this to your `CMakeLists.txt`:
+```cmake
+find_package(motor_control_sdk REQUIRED)
+ament_target_dependencies(your_target motor_control_sdk)
 ```
