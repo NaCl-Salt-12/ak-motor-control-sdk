@@ -1,4 +1,0 @@
-# .clang-tidy
-Checks: '*'
-HeaderFilterRegex: '.*'
-FormatStyle: google

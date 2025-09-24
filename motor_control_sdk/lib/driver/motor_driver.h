@@ -10,7 +10,10 @@
 #include <functional>
 
 #include "rclcpp/rclcpp.hpp"
-#include "motor_control_sdk/msgs/motor_msgs.h"
+#include "motor_control_sdk/msg/motor_command.hpp"
+#include "motor_control_sdk/msg/motor_commands.hpp"
+#include "motor_control_sdk/msg/motor_state.hpp"
+#include "motor_control_sdk/msg/motor_states.hpp"
 
 #include "motor_control_sdk/lib/driver/containers.h"
 #include "motor_control_sdk/lib/communication/can_bus.h"
@@ -51,9 +54,9 @@ class MotorDriver : public rclcpp::Node {
 
         // Private methods:
         void setup();
-        void command_callback(const cubemars_motor_msgs::msg::MotorCommands::ConstSharedPtr msg);
+        void command_callback(const motor_control_sdk::msg::MotorCommands::ConstSharedPtr msg);
         void state_callback();
-        void can_read_loop(std::stop_token token, const std::string& can_interface);
+        void can_read_loop(const std::string& can_interface);
 
         // Member variables:
         std::vector<containers::MotorConfig> motor_configs_;
@@ -66,11 +69,12 @@ class MotorDriver : public rclcpp::Node {
         std::map<std::string, MotorRuntimeState> motor_states_;
 
         // Threading Management
-        std::vector<std::jthread> threads_;
+        std::vector<std::thread> threads_;
+        std::atomic<bool> stop_threads_{false};
         std::mutex mutex_;
 
         // ROS2 Interface
-        rclcpp::Subscription<cubemars_motor_msgs::msg::MotorCommands>::SharedPtr command_subscriber_;
-        rclcpp::Publisher<cubemars_motor_msgs::msg::MotorStates>::SharedPtr state_publisher_;
+        rclcpp::Subscription<motor_control_sdk::msg::MotorCommands>::SharedPtr command_subscriber_;
+        rclcpp::Publisher<motor_control_sdk::msg::MotorStates>::SharedPtr state_publisher_;
         rclcpp::TimerBase::SharedPtr timer_;
 };

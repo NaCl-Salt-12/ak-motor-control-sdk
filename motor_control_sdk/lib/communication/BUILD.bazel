@@ -1,8 +1,0 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
-
-cc_library(
-    name = "can_bus",
-    srcs = ["can_bus.cc"],
-    hdrs = ["can_bus.h"],
-    visibility = ["//visibility:public"],
-)
