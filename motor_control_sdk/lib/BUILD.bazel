@@ -1,7 +1,0 @@
-load("@rules_cc//cc:defs.bzl", "cc_library")
-
-cc_library(
-    name = "motor_specs",
-    srcs = ["motor_specs.h"],
-    visibility = ["//visibility:public"],
-)
